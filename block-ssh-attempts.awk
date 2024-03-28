@@ -16,7 +16,7 @@ BEGIN{
 }
 
 /Invalid user/{
-    ip= gensub(/.*from ([0-9.]+).*/,"\\1",1,$0)
+    ip=gensub(/.*from ([0-9.]+).*/,"\\1",1,$0)
     blocked[ip]++
 }
 

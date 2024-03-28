@@ -4,10 +4,10 @@
 
 USAGE=$'
 NAME
-        block-ssh-attempts - add a ufw rule to deny access to IP addresses that fails n times to login via ssh.
+        sshprotect - add a ufw rule to deny access to IP addresses that fails n times to login via ssh.
 
 SYNOPSIS
-        block-ssh-attempts [OPTIONS]
+        sshprotect [OPTIONS]
 
 DESCRIPTION
         Add a ufw rule to deny access to IP addresses that fails n times to login via ssh.
@@ -24,7 +24,7 @@ DESCRIPTION
         Print script version.
 '
 
-VERSION="0.3"
+VERSION="1.0.1"
 # Minimum number of attempts to block
 TIMES=3
 APPDIR=/usr/local/share/sshprotect
@@ -47,7 +47,7 @@ if [ "" = "$PKG_OK" ]; then
   exit 1
 else
   # Check if ufw is enabled
-  UFW_STATUS=$(ufw status | grep "Status: active")
+    UFW_STATUS=$(ufw status | grep -E "Status: active|Estado: activo")
   if [ "$UFW_STATUS" = "" ]; then
     echo "UFW is disabled, please run: sudo ufw enable, to enable it." > /dev/stderr
     exit 1
@@ -85,13 +85,16 @@ blocked_ips=($(ufw status | gawk '$1=="Anywhere" && $2=="DENY"{print $3}'))
 
 # Get ips from auth.log file associated to ssh failed login attempts.
 # These data are stored into an array.
-
 ips_to_block=($(gawk -v times=$TIMES -f $APPDIR/block-ssh-attempts.awk /var/log/auth.log))
 
-# Loop over ips
-for ip in " ${ips_to_block[@]} "
-do
-    if [[ ! " ${blocked_ips[@]} " =~ " $ip " ]];  then
-        ufw insert 1 deny from $ip to any
-    fi
-done 2>>$LOGDIR/sshprotect.log
+if [ -z "$ips_to_block" ]; then
+    echo "No ip addresses to block in /var/log/auth.log file."
+else
+    # Loop over ip addresses to block
+    for ip in "${ips_to_block[@]}"
+    do
+        if [[ ! " ${blocked_ips[@]} " =~ " $ip " ]]; then
+            ufw insert 1 deny from "$ip" to any
+        fi
+    done 2>>"$LOGDIR/sshprotect.log"
+fi

@@ -8,8 +8,8 @@ StartLimitIntervalSec=0
 Type=simple
 User=root
 Restart=always
-RestartSec=300
-ExecStart=/usr/local/bin/sshprotect.sh
+RestartSec=1000
+ExecStart=/usr/local/bin/sshprotect
 
 [Install]
 WantedBy=multi-user.target
