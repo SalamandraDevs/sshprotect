@@ -1,0 +1,97 @@
+#!/bin/bash -f
+
+# Create an ufw rule for those users attempting to login as root
+
+USAGE=$'
+NAME
+        block-ssh-attempts - add a ufw rule to deny access to IP addresses that fails n times to login via ssh.
+
+SYNOPSIS
+        block-ssh-attempts [OPTIONS]
+
+DESCRIPTION
+        Add a ufw rule to deny access to IP addresses that fails n times to login via ssh.
+        This software requires GAWK and UFW to be installed on your system. UFW have to be enabled.
+
+        -h
+        Print this help list.
+
+        -n NUMBER
+        Set to NUMBER the minimum number of failed attempts to login via ssh, any ip
+        having a greater frequency will be blocked.
+
+        -v
+        Print script version.
+'
+
+VERSION="0.3"
+# Minimum number of attempts to block
+TIMES=3
+APPDIR=/usr/local/share/sshprotect
+BINDIR=/usr/local/bin
+LOGDIR=/var/log
+
+# Check for required packages
+REQUIRED_PKG="gawk"
+PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
+
+if [ "" = "$PKG_OK" ]; then
+  echo -e "$REQUIRED_PKG package was not found in your system, run: sudo apt install $REQUIRED_PKG, to install it." > /dev/stderr
+  exit 1
+fi
+
+REQUIRED_PKG="ufw"
+PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
+if [ "" = "$PKG_OK" ]; then
+  echo -e "$REQUIRED_PKG package was not found in your system, run: sudo apt install $REQUIRED_PKG, to install it." > /dev/stderr
+  exit 1
+else
+  # Check if ufw is enabled
+  UFW_STATUS=$(ufw status | grep "Status: active")
+  if [ "$UFW_STATUS" = "" ]; then
+    echo "UFW is disabled, please run: sudo ufw enable, to enable it." > /dev/stderr
+    exit 1
+  fi
+fi
+
+while getopts "hvn:" opt
+do
+    case "${opt}" in
+        h)
+            echo "$USAGE"
+            exit 0
+            ;;
+        n)
+            TIMES=${OPTARG}
+            ;;
+        v)
+            echo "Version" $VERSION
+            exit 0
+            ;;
+
+        *)
+            echo "Unknown option ${opt}" > /dev/stderr
+            exit 1
+            ;;
+    esac
+done
+
+# Exit if no file auth.log is found
+if [ ! -f /var/log/auth.log ] ; then
+  exit 1;
+fi
+# Load denied ip-database into an array
+blocked_ips=($(ufw status | gawk '$1=="Anywhere" && $2=="DENY"{print $3}'))
+
+# Get ips from auth.log file associated to ssh failed login attempts.
+# These data are stored into an array.
+
+ips_to_block=($(gawk -v times=$TIMES -f $APPDIR/block-ssh-attempts.awk /var/log/auth.log))
+
+# Loop over ips
+for ip in " ${ips_to_block[@]} "
+do
+    if [[ ! " ${blocked_ips[@]} " =~ " $ip " ]];  then
+        ufw insert 1 deny from $ip to any
+    fi
+done 2>>$LOGDIR/sshprotect.log

@@ -1,0 +1,15 @@
+[Unit]
+Description=Block IP addresses with failed ssh login attempts
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+Restart=always
+RestartSec=300
+ExecStart=/usr/local/bin/sshprotect.sh
+
+[Install]
+WantedBy=multi-user.target
